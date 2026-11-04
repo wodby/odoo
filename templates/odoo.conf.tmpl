@@ -1,0 +1,65 @@
+[options]
+{{- if getenv "ODOO_ADDONS_PATH" }}
+addons_path = {{ getenv "ODOO_ADDONS_PATH" }}
+{{- end }}
+data_dir = {{ getenv "ODOO_DATA_DIR" "/var/lib/odoo" }}
+admin_passwd = {{ getenv "ODOO_MASTER_PASSWORD" }}
+
+; Database
+db_host = {{ getenv "DB_HOST" "postgres" }}
+db_port = {{ getenv "DB_PORT" "5432" }}
+db_user = {{ getenv "DB_USER" "odoo" }}
+db_password = {{ getenv "DB_PASSWORD" "odoo" }}
+{{- if getenv "DB_NAME" }}
+db_name = {{ getenv "DB_NAME" }}
+dbfilter = {{ getenv "ODOO_DBFILTER" (print "^" (getenv "DB_NAME") "$") }}
+{{- else if getenv "ODOO_DBFILTER" }}
+dbfilter = {{ getenv "ODOO_DBFILTER" }}
+{{- end }}
+db_sslmode = {{ getenv "ODOO_DB_SSLMODE" (getenv "DB_SSL_MODE" "prefer") }}
+db_maxconn = {{ getenv "ODOO_DB_MAXCONN" "64" }}
+list_db = {{ getenv "ODOO_LIST_DB" "False" }}
+{{- if getenv "ODOO_UNACCENT" }}
+unaccent = {{ getenv "ODOO_UNACCENT" }}
+{{- end }}
+
+; HTTP
+http_interface = {{ getenv "ODOO_HTTP_INTERFACE" "0.0.0.0" }}
+http_port = {{ getenv "ODOO_HTTP_PORT" "8069" }}
+gevent_port = {{ getenv "ODOO_GEVENT_PORT" "8072" }}
+proxy_mode = {{ getenv "ODOO_PROXY_MODE" "True" }}
+
+; Processes. With workers, live updates are served on gevent_port, not http_port.
+workers = {{ getenv "ODOO_WORKERS" "2" }}
+max_cron_threads = {{ getenv "ODOO_MAX_CRON_THREADS" "1" }}
+limit_memory_soft = {{ getenv "ODOO_LIMIT_MEMORY_SOFT" "2147483648" }}
+limit_memory_hard = {{ getenv "ODOO_LIMIT_MEMORY_HARD" "2684354560" }}
+limit_time_cpu = {{ getenv "ODOO_LIMIT_TIME_CPU" "60" }}
+limit_time_real = {{ getenv "ODOO_LIMIT_TIME_REAL" "120" }}
+limit_time_real_cron = {{ getenv "ODOO_LIMIT_TIME_REAL_CRON" "-1" }}
+limit_request = {{ getenv "ODOO_LIMIT_REQUEST" "65536" }}
+{{- if getenv "ODOO_SERVER_WIDE_MODULES" }}
+server_wide_modules = {{ getenv "ODOO_SERVER_WIDE_MODULES" }}
+{{- end }}
+
+; Outgoing email
+{{- if getenv "SMTP_HOST" }}
+smtp_server = {{ getenv "SMTP_HOST" }}
+smtp_port = {{ getenv "SMTP_PORT" "25" }}
+{{- end }}
+{{- if getenv "SMTP_USER" }}
+smtp_user = {{ getenv "SMTP_USER" }}
+smtp_password = {{ getenv "SMTP_PASSWORD" }}
+{{- end }}
+{{- if getenv "SMTP_SSL" }}
+smtp_ssl = {{ getenv "SMTP_SSL" }}
+{{- end }}
+{{- if getenv "ODOO_EMAIL_FROM" }}
+email_from = {{ getenv "ODOO_EMAIL_FROM" }}
+{{- end }}
+
+; Logging goes to the container's output.
+log_level = {{ getenv "ODOO_LOG_LEVEL" "info" }}
+{{- if getenv "ODOO_LOG_HANDLER" }}
+log_handler = {{ getenv "ODOO_LOG_HANDLER" }}
+{{- end }}

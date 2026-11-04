@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Print Odoo's addons_path for the application code: every directory that holds Odoo modules.
+
+A module is a directory with a __manifest__.py file. The application root ($APP_ROOT) and /mnt/extra-addons are
+searched a few levels deep, so a repository can keep its modules at the root, in addons/, or in one directory per
+module collection, such as Git submodules of community repositories.
+"""
+
+import os
+import sys
+
+MAX_DEPTH = 3
+SKIP = {"node_modules", "__pycache__", "setup", "tests", "static", "migrations", "upgrades"}
+
+
+def is_module(path):
+    return os.path.isfile(os.path.join(path, "__manifest__.py"))
+
+
+def walk(path, depth, found):
+    try:
+        entries = sorted(os.scandir(path), key=lambda e: e.name)
+    except OSError:
+        return
+    children = [e for e in entries if e.is_dir() and not e.name.startswith(".") and e.name not in SKIP]
+    if any(is_module(e.path) for e in children):
+        found.append(path)
+    if depth >= MAX_DEPTH:
+        return
+    for child in children:
+        # Modules don't hold other module directories.
+        if not is_module(child.path):
+            walk(child.path, depth + 1, found)
+
+
+def main():
+    roots = sys.argv[1:] or [os.environ.get("APP_ROOT", "/usr/src/app"), "/mnt/extra-addons"]
+    found = []
+    for root in roots:
+        if os.path.isdir(root):
+            walk(os.path.realpath(root), 0, found)
+    print(",".join(dict.fromkeys(found)))
+
+
+if __name__ == "__main__":
+    main()
