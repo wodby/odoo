@@ -11,9 +11,11 @@ db_port = {{ getenv "DB_PORT" "5432" }}
 db_user = {{ getenv "DB_USER" "odoo" }}
 db_password = {{ getenv "DB_PASSWORD" "odoo" }}
 {{- if getenv "DB_NAME" }}
+; Without a dbfilter, Odoo serves only db_name and never lists databases. A dbfilter makes it list the databases
+; owned by its login role, which misses a database owned by a role it switches to.
 db_name = {{ getenv "DB_NAME" }}
-dbfilter = {{ getenv "ODOO_DBFILTER" (print "^" (getenv "DB_NAME") "$") }}
-{{- else if getenv "ODOO_DBFILTER" }}
+{{- end }}
+{{- if getenv "ODOO_DBFILTER" }}
 dbfilter = {{ getenv "ODOO_DBFILTER" }}
 {{- end }}
 db_sslmode = {{ getenv "ODOO_DB_SSLMODE" (getenv "DB_SSL_MODE" "prefer") }}
