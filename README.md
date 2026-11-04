@@ -59,10 +59,10 @@ The administrator settings are used only for the installation; change the passwo
 | `DB_PORT`                   | `5432`           |                                                                             |
 | `DB_USER`                   | `odoo`           |                                                                             |
 | `DB_PASSWORD`               | `odoo`           |                                                                             |
-| `DB_NAME`                   |                  | The only database Odoo serves. Also sets `dbfilter`                         |
+| `DB_NAME`                   |                  | The only database Odoo serves                                               |
 | `DB_SSL_CA`                 |                  | CA certificate file of the database server: connect over verified TLS       |
 | `ODOO_DB_SSLMODE`           | `prefer`         | `verify-full` when `DB_SSL_CA` is set                                       |
-| `ODOO_DBFILTER`             | `^<DB_NAME>$`    |                                                                             |
+| `ODOO_DBFILTER`             |                  | Unset: Odoo serves only `DB_NAME`. A filter makes Odoo list the databases its login role owns |
 | `ODOO_LIST_DB`              | `False`          | `True` turns on the database manager                                        |
 | `ODOO_MASTER_PASSWORD`      | random           | Password of the database manager (`admin_passwd`)                           |
 | `ODOO_DATA_DIR`             | `/var/lib/odoo`  | Filestore and sessions. Every replica must share it                         |

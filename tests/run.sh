@@ -47,7 +47,7 @@ psql_run() {
 docker network create "${network}" > /dev/null
 docker volume create "${data}" > /dev/null
 
-# Wodby gives Odoo a database owned by a role that can't create databases.
+# As on Wodby: the login role can't create databases and switches to a role that owns the database but can't log in.
 docker run -d --name "${postgres}" --network "${network}" -e POSTGRES_PASSWORD=postgres postgres:17-alpine > /dev/null
 for _ in $(seq 1 60); do
     if docker exec "${postgres}" pg_isready -U postgres -h localhost > /dev/null 2>&1; then
@@ -57,8 +57,10 @@ for _ in $(seq 1 60); do
 done
 sleep 2
 docker exec -e PGPASSWORD=postgres "${postgres}" psql -U postgres -q \
-    -c "CREATE ROLE odoo LOGIN PASSWORD 'odoo pass%' NOSUPERUSER NOCREATEDB NOCREATEROLE" \
-    -c "CREATE DATABASE odoo OWNER odoo"
+    -c "CREATE ROLE \"odoo:owner\" NOLOGIN" \
+    -c "CREATE ROLE odoo LOGIN PASSWORD 'odoo pass%' NOSUPERUSER NOCREATEDB NOCREATEROLE IN ROLE \"odoo:owner\"" \
+    -c "ALTER ROLE odoo SET role = 'odoo:owner'" \
+    -c "CREATE DATABASE odoo OWNER \"odoo:owner\""
 
 echo -n "Checking the user and Odoo version... "
 odoo_run id -u | grep -qx 1000
@@ -69,12 +71,12 @@ echo "OK"
 echo -n "Checking the rendered configuration... "
 conf="$(odoo_run cat /etc/odoo/odoo.conf)"
 grep -qxF "db_name = odoo" <<<"${conf}"
-grep -qxF 'dbfilter = ^odoo$' <<<"${conf}"
+if grep -q "^dbfilter" <<<"${conf}"; then exit 1; fi
 grep -qxF "list_db = False" <<<"${conf}"
 grep -qxF "proxy_mode = True" <<<"${conf}"
 grep -qxF "workers = 2" <<<"${conf}"
 grep -qxF "addons_path = /usr/src/app/addons" <<<"${conf}"
-! grep -q "^admin_passwd = admin$" <<<"${conf}"
+if grep -q "^admin_passwd = admin$" <<<"${conf}"; then exit 1; fi
 echo "OK"
 
 echo -n "Checking that installing needs the administrator password... "
@@ -129,6 +131,12 @@ assert result.get("result", {}).get("uid") == 2, result
 EOF
 echo "OK"
 
+echo -n "Checking that a visitor without a session reaches the database... "
+# The company logo is public but needs the database; without one Odoo answers 404 "No database is selected".
+status="$(docker exec "${NAME}" curl -s -o /dev/null -w '%{http_code}' http://localhost:8069/web/image/res.company/1/logo)"
+[[ "${status}" == "200" ]] || { echo "status ${status}"; exit 1; }
+echo "OK"
+
 echo -n "Checking that the database manager is off... "
 body="$(docker exec "${NAME}" curl -s http://localhost:8069/web/database/manager)"
 grep -q "database manager has been disabled" <<<"${body}" || { echo "${body}" | head -c 2000; exit 1; }
@@ -157,7 +165,7 @@ pdf, kind = env["ir.actions.report"]._render_qweb_pdf("base.ir_module_reference_
 print("PDF OK" if kind == "pdf" and pdf.startswith(b"%PDF") else f"PDF FAILED {kind}")
 EOF
 # The report's styles were loaded from the container itself.
-! grep -q "network error" /tmp/odoo-test.log
+if grep -q "network error" /tmp/odoo-test.log; then exit 1; fi
 echo "OK"
 
 echo -n "Checking the filestore on the data volume... "
