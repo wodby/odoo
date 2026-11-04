@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+# Installs Odoo into an empty database, or updates the modules that changed in an installed one.
+#
+# Install: base plus ODOO_INIT_MODULES, without demo data unless ODOO_WITH_DEMO is set, then the administrator's login,
+# password and email from ODOO_ADMIN_LOGIN, ODOO_ADMIN_PASSWORD and ODOO_ADMIN_EMAIL.
+#
+# Update: installed modules whose manifest version went up, and installed modules of the application code whose files
+# changed since the last run. The checksums are kept in the database, so a restored database is compared with its own
+# state. "odoo-update all" updates every installed module.
+
+set -eo pipefail
+
+if [[ -n "${DEBUG}" ]]; then
+    set -x
+fi
+
+db="${DB_NAME:-${PGDATABASE}}"
+if [[ -z "${db}" ]]; then
+    echo >&2 "DB_NAME is not set: no database to install Odoo into."
+    exit 1
+fi
+
+script=/usr/local/share/wodby/odoo-update.py
+odoo_major="${ODOO_VERSION%%.*}"
+
+odoo_shell() {
+    WODBY_ODOO_STEP="${1}" odoo shell -d "${db}" --no-http --log-level=warn < "${script}"
+}
+
+if [[ "${1}" == "all" ]]; then
+    exec odoo -d "${db}" -u all --stop-after-init --no-http
+fi
+
+sql() {
+    psql -d "${db}" -tAX -v ON_ERROR_STOP=1 -c "${1}"
+}
+
+# A connection or permission error stops here, before anything is installed.
+if [[ "$(sql "SELECT to_regclass('public.ir_module_module') IS NULL")" == "t" ]]; then
+    state="empty"
+else
+    state="$(sql "SELECT coalesce(max(state), 'missing') FROM ir_module_module WHERE name = 'base'")"
+fi
+
+case "${state}" in
+    empty)
+        if [[ -z "${ODOO_ADMIN_PASSWORD}" ]]; then
+            echo >&2 "Odoo is not installed. To install it, set the administrator password (ODOO_ADMIN_PASSWORD) and deploy again."
+            exit 1
+        fi
+
+        modules="base"
+        if [[ -n "${ODOO_INIT_MODULES}" ]]; then
+            modules+=",${ODOO_INIT_MODULES// /}"
+        fi
+
+        args=()
+        # Odoo 19 stopped loading demo data by default; Odoo 18 loads it unless told not to.
+        if [[ -n "${ODOO_WITH_DEMO}" ]]; then
+            if (( odoo_major >= 19 )); then args+=(--with-demo); fi
+        elif (( odoo_major < 19 )); then
+            args+=(--without-demo=all)
+        fi
+        if [[ -n "${ODOO_LANGUAGE}" ]]; then
+            args+=("--load-language=${ODOO_LANGUAGE}")
+        fi
+
+        echo "Installing Odoo ${ODOO_VERSION} with modules ${modules} into database ${db}"
+        odoo -d "${db}" -i "${modules}" --stop-after-init --no-http "${args[@]}"
+        odoo_shell install
+        echo "Odoo is installed"
+        ;;
+    installed)
+        output="$(odoo_shell plan)"
+        modules="$(sed -n 's/^WODBY_UPDATE_MODULES=//p' <<<"${output}")"
+        if [[ -z "${modules}" ]]; then
+            echo "No module needs an update"
+            exit 0
+        fi
+        echo "Updating modules: ${modules}"
+        odoo -d "${db}" -u "${modules}" --stop-after-init --no-http
+        odoo_shell save
+        echo "Modules updated"
+        ;;
+    *)
+        # A database whose installation was interrupted. Installing over it could mix two installations.
+        echo >&2 "Database ${db} has Odoo tables, but the base module is ${state}, not installed: a previous installation did not finish. Restore a backup or empty the database, then deploy again."
+        exit 1
+        ;;
+esac

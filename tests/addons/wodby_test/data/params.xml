@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="test_param" model="ir.config_parameter">
+        <field name="key">wodby_test.value</field>
+        <field name="value">one</field>
+    </record>
+</odoo>
