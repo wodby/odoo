@@ -15,7 +15,7 @@ cp -R addons/. "${addons}/"
 chmod -R a+rX "${addons}"
 
 cleanup() {
-    docker rm -vf "${NAME}" "${postgres}" > /dev/null 2>&1 || true
+    docker rm -vf "${NAME}" "${NAME}-2" "${postgres}" > /dev/null 2>&1 || true
     docker volume rm -f "${data}" > /dev/null 2>&1 || true
     docker network rm "${network}" > /dev/null 2>&1 || true
     rm -rf "${addons}"
@@ -87,9 +87,26 @@ fi
 grep -q "set the administrator password" /tmp/odoo-test.log
 echo "OK"
 
-echo "Installing Odoo... "
+echo -n "Installing Odoo on the first start of two replicas... "
 env_args+=(-e ODOO_ADMIN_PASSWORD='Admin pass 1!')
-odoo_run odoo-update
+# The server can't serve an empty database, so the entrypoint installs Odoo first. Two replicas starting together
+# install it once: the second waits for the first and finds it installed.
+for name in "${NAME}" "${NAME}-2"; do
+    docker run -d --name "${name}" --network "${network}" "${env_args[@]}" -v "${data}:/mnt/files" \
+        -v "${addons}:/usr/src/app/addons:ro" "${IMAGE}" > /dev/null
+done
+for name in "${NAME}" "${NAME}-2"; do
+    for _ in $(seq 1 300); do
+        if docker exec "${name}" curl -fsS http://localhost:8069/web/health 2>/dev/null | grep -q pass; then
+            break
+        fi
+        sleep 1
+    done
+    docker exec "${name}" curl -fsS http://localhost:8069/web/health | grep -q pass || { docker logs "${name}"; exit 1; }
+done
+[[ "$(docker logs "${NAME}" 2>&1 | grep -c "Odoo is installed")$(docker logs "${NAME}-2" 2>&1 | grep -c "Odoo is installed")" =~ ^(10|01)$ ]] \
+    || { docker logs "${NAME}"; docker logs "${NAME}-2"; exit 1; }
+docker rm -vf "${NAME}-2" > /dev/null
 echo "OK"
 
 echo -n "Checking the installation... "
@@ -102,20 +119,8 @@ echo -n "Checking the installation... "
 [[ "$(psql_run "SELECT state FROM ir_module_module WHERE name = 'wodby_test'")" == "uninstalled" ]]
 echo "OK"
 
-echo -n "Checking that a second run updates nothing... "
+echo -n "Checking that the update action after the deployment updates nothing... "
 odoo_run odoo-update | grep -q "No module needs an update"
-echo "OK"
-
-echo -n "Starting Odoo with workers... "
-docker run -d --name "${NAME}" --network "${network}" "${env_args[@]}" -v "${data}:/mnt/files" \
-    -v "${addons}:/usr/src/app/addons:ro" "${IMAGE}" > /dev/null
-for _ in $(seq 1 60); do
-    if docker exec "${NAME}" curl -fsS http://localhost:8069/web/health 2>/dev/null | grep -q pass; then
-        break
-    fi
-    sleep 1
-done
-docker exec "${NAME}" curl -fsS http://localhost:8069/web/health | grep -q pass || { docker logs "${NAME}"; exit 1; }
 echo "OK"
 
 echo -n "Signing in as the administrator... "

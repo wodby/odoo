@@ -48,6 +48,11 @@ as the `wodby` user.
   in `/usr/src/app` or `/mnt/extra-addons` whose files changed since its last run (changes in `static/` and `tests/`
   don't count). It also refreshes the list of modules, so new ones can be installed from the Apps menu.
 - `odoo-update all` updates every installed module.
+- `odoo-update install` only installs, and does nothing on an installed database.
+
+When `DB_NAME` is set, the first start of Odoo's server runs `odoo-update install`: Odoo can't serve an empty database,
+not even its health check. Replicas that start together, and `odoo-update` runs, wait for each other, so Odoo is
+installed once. Allow for the installation in the startup probe: it takes a few minutes, more with many apps.
 
 The administrator settings are used only for the installation; change the password in Odoo afterwards.
 

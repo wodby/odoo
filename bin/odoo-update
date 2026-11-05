@@ -8,6 +8,11 @@
 # Update: installed modules whose manifest version went up, and installed modules of the application code whose files
 # changed since the last run. The checksums are kept in the database, so a restored database is compared with its own
 # state. "odoo-update all" updates every installed module.
+#
+# "odoo-update install" only installs: it does nothing on an installed database. docker-entrypoint.sh runs it before
+# Odoo's server starts, because the server can't serve an empty database.
+#
+# One run at a time per database: replicas that start together and the deployment's update action wait for each other.
 
 set -eo pipefail
 
@@ -19,6 +24,11 @@ db="${DB_NAME:-${PGDATABASE}}"
 if [[ -z "${db}" ]]; then
     echo >&2 "DB_NAME is not set: no database to install Odoo into."
     exit 1
+fi
+
+if [[ -z "${WODBY_ODOO_LOCKED}" ]]; then
+    export WODBY_ODOO_LOCKED=1
+    exec python3 /usr/local/share/wodby/odoo-lock.py "${db}" "${0}" "${@}"
 fi
 
 script=/usr/local/share/wodby/odoo-update.py
@@ -72,6 +82,9 @@ case "${state}" in
         echo "Odoo is installed"
         ;;
     installed)
+        if [[ "${1}" == "install" ]]; then
+            exit 0
+        fi
         output="$(odoo_shell plan)"
         modules="$(sed -n 's/^WODBY_UPDATE_MODULES=//p' <<<"${output}")"
         if [[ -z "${modules}" ]]; then
