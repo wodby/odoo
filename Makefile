@@ -1,7 +1,7 @@
 -include env_make
 
 # Odoo's series and the date of Odoo's build of it: 20.0.20261102 is the official image tag 20.0-20261102.
-ODOO_VER ?= 20.0.20261102
+ODOO_VER ?= 20.0.20261112
 ODOO_VER_MINOR := $(basename $(ODOO_VER))
 ODOO_RELEASE := $(subst .,,$(suffix $(ODOO_VER)))
 ODOO_VER_MAJOR := $(basename $(ODOO_VER_MINOR))
