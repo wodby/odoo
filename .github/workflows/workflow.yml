@@ -9,6 +9,13 @@ on:
       - '*'
       - '!*-r[0-9]*'
 
+# Runs of one event and branch or tag never overlap, so an older master run
+# cannot finish last and move floating tags back. A newer pending run of the
+# same event replaces an older one; other events never replace each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   ODOO20: '20.0.20261112'
   ODOO19: '19.0.20261112'
@@ -52,13 +59,18 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: build and push
+        id: build-image
         env:
           ODOO_VER: ${{ matrix.odoo.version }}
           ARCH: ${{ matrix.arch }}
         run: |
           make
           make test
-          make push
+          echo "image=$(make --no-print-directory -s image-ref)" >> "$GITHUB_OUTPUT"
+      - name: Push architecture image
+        uses: wodby/images/.github/actions/arch-image-push@2da5f02ec3dffc5cb3331152e01e3c89874b0bfe
+        with:
+          image: ${{ steps.build-image.outputs.image }}
 
   push:
     runs-on: ubuntu-latest
@@ -74,6 +86,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: wodby/images/.github/actions/arch-image-pins@2da5f02ec3dffc5cb3331152e01e3c89874b0bfe
       - uses: ./.github/actions
         with:
           version: ${{ matrix.odoo.version }}
