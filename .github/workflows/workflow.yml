@@ -17,9 +17,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  ODOO20: '20.0.20261112'
-  ODOO19: '19.0.20261112'
-  ODOO18: '18.0.20261112'
+  ODOO20: '20.0.20261123'
+  ODOO19: '19.0.20261123'
+  ODOO18: '18.0.20261124'
 
 jobs:
   setup:
